@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# file unggahan lokal (foto, audio, frame)
+/uploads
+
+# alamat tunnel Cloudflare saat ini (ditulis oleh npm run tunnel)
+/.tunnel-url
+
+certificates
