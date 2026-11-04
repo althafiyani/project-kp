@@ -7,8 +7,10 @@
 CREATE TABLE users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name          VARCHAR(100) NOT NULL,
-  email         VARCHAR(150) NOT NULL UNIQUE,
+  username      VARCHAR(150) NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  role          VARCHAR(10) NOT NULL DEFAULT 'admin'
+                CHECK (role IN ('admin', 'mempelai')),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -20,11 +22,13 @@ CREATE TABLE events (
   event_date         DATE,
   opening_design_url TEXT,
   qr_code            TEXT,
+  mempelai_id        UUID REFERENCES users(id) ON DELETE SET NULL,
   status             VARCHAR(10) NOT NULL DEFAULT 'active'
                      CHECK (status IN ('active', 'inactive')),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_events_vendor ON events(vendor_id);
+CREATE INDEX idx_events_mempelai ON events(mempelai_id);
 
 CREATE TABLE frames (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

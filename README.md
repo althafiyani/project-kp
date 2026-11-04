@@ -7,7 +7,7 @@ Vendor membuat event lewat dashboard, tamu membuka link/QR Code event untuk berf
 
 | Perangkat | Versi | Catatan |
 | --- | --- | --- |
-| Node.js | 20.6 atau lebih baru | Skrip `migrate` memakai `node --env-file` |
+| Node.js | 20.6 atau lebih baru | Skrip `migrate` dan `seed` memakai `node --env-file` |
 | PostgreSQL | 13 atau lebih baru | Skema memakai `gen_random_uuid()` |
 | npm | bawaan Node.js | |
 
@@ -92,7 +92,43 @@ Jangan mengedit file migrasi yang sudah pernah dijalankan; buat file baru.
 
 > **Catatan:** [sql/schema.sql](sql/schema.sql) adalah skema lengkap untuk dijalankan manual. Pakai **salah satu**: `npm run migrate` **atau** `schema.sql`. Menjalankan keduanya akan gagal karena tabel sudah ada.
 
-## 4. Menjalankan
+## 4. Mengisi data awal
+
+### 4.1 Seeder demo (development)
+
+```bash
+npm run seed
+```
+
+Skrip [scripts/seed.mjs](scripts/seed.mjs) mengisi:
+
+- akun vendor demo: `demo@photobooth.test` / `demo12345`
+- satu event aktif: **Pesta Pernikahan Demo** (slug `pernikahan-demo`)
+
+Seeder memakai `ON CONFLICT DO NOTHING`, jadi **aman dijalankan berulang kali** dan data yang sudah ada tidak diubah.
+
+Seeder **menolak berjalan** jika `NODE_ENV=production`, supaya akun demo dengan password yang diketahui publik tidak masuk ke server produksi.
+
+### 4.2 Membuat akun vendor sungguhan
+
+Untuk produksi, atau jika tidak ingin memakai akun demo:
+
+```bash
+node --env-file=.env.local scripts/create-vendor.mjs
+```
+
+Skrip akan menanyakan nama, email, dan password (minimal 8 karakter).
+
+### 4.3 Urutan lengkap dari nol
+
+```bash
+npm install
+psql -U postgres -f sql/create_db.sql
+npm run migrate
+npm run seed
+```
+
+## 5. Menjalankan
 
 ```bash
 npm run dev
