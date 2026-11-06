@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireAdmin, isUuid, jsonError } from "@/lib/api";
+import { requireAdmin, requireEventEditor, isUuid, jsonError } from "@/lib/api";
 import { updateEventSchema, firstError } from "@/lib/events";
 import { deleteFile } from "@/lib/storage";
 
 // Kolom yang boleh diubah (daftar putih, bukan dari input pengguna).
-const KOLOM = ["name", "slug", "event_date", "status", "timezone", "mempelai_id"];
+const KOLOM = ["name", "slug", "event_date", "status", "timezone", "mempelai_id",
+  "frame_text_top", "frame_text_name", "frame_text_style"];
 
-// Ubah dan hapus event: hanya admin.
+// Kolom yang boleh diubah mempelai pemilik event.
+const KOLOM_MEMPELAI = ["frame_text_top", "frame_text_name", "frame_text_style"];
+
+// Admin boleh mengubah semua kolom; mempelai pemilik event hanya KOLOM_MEMPELAI. Hapus: hanya admin.
 export async function PATCH(request, { params }) {
-  const { error } = await requireAdmin();
-  if (error) return error;
-
   const { id } = await params;
   if (!isUuid(id)) return jsonError("Event tidak ditemukan.", 404);
+  const { error, admin } = await requireEventEditor(id);
+  if (error) return error;
 
   let body;
   try {
@@ -24,6 +27,11 @@ export async function PATCH(request, { params }) {
 
   const parsed = updateEventSchema.safeParse(body);
   if (!parsed.success) return jsonError(firstError(parsed.error), 400);
+
+  // Mempelai hanya boleh mengubah teks frame; sisanya khusus admin.
+  if (!admin && Object.keys(parsed.data).some((k) => !KOLOM_MEMPELAI.includes(k))) {
+    return jsonError("Hanya admin yang boleh mengubah bagian ini.", 403);
+  }
 
   try {
     // Akun yang dihubungkan harus benar-benar akun mempelai.
@@ -37,8 +45,10 @@ export async function PATCH(request, { params }) {
     const values = [];
     for (const kolom of KOLOM) {
       if (kolom in parsed.data) {
-        values.push(parsed.data[kolom]);
-        sets.push(`${kolom} = $${values.length}`);
+        const v = parsed.data[kolom];
+        // frame_text_style disimpan sebagai JSONB.
+        values.push(kolom === "frame_text_style" ? JSON.stringify(v) : v);
+        sets.push(`${kolom} = $${values.length}${kolom === "frame_text_style" ? "::jsonb" : ""}`);
       }
     }
     values.push(id);
@@ -73,6 +83,7 @@ export async function DELETE(_request, { params }) {
     const info = await query(
       `SELECT e.opening_design_url AS opening,
               COALESCE((SELECT array_agg(image_url) FROM frames WHERE event_id = e.id), '{}') AS frames,
+              COALESCE((SELECT array_agg(url) FROM event_fonts WHERE event_id = e.id), '{}') AS fonts,
               COALESCE((SELECT array_agg(photo_url) FROM submissions WHERE event_id = e.id), '{}') AS photos,
               COALESCE((SELECT array_agg(audio_url) FROM submissions
                           WHERE event_id = e.id AND audio_url IS NOT NULL), '{}') AS audios
@@ -88,7 +99,7 @@ export async function DELETE(_request, { params }) {
     if (rowCount === 0) return jsonError("Event tidak ditemukan.", 404);
 
     await Promise.all(
-      [f.opening, ...f.frames, ...f.photos, ...f.audios].map((u) => deleteFile(u)),
+      [f.opening, ...f.frames, ...f.fonts, ...f.photos, ...f.audios].map((u) => deleteFile(u)),
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

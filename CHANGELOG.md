@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.4.0 - Frame, teks frame, dan font
+
+Katalog 30 frame, unggah frame PNG, deteksi lubang foto, teks nama di frame, font pustaka dan unggahan. Disatukan karena memakai mesin render frame yang sama.
+
 ## v0.3.0 - Manajemen event, jadwal akses, akun mempelai
 
 Buat/ubah/hapus event, mode akses otomatis per zona waktu, akun mempelai. Disatukan karena pembuatan event sekaligus membuat akun dan jadwalnya.

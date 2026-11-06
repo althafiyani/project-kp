@@ -10,6 +10,11 @@ import { accessInfo } from "@/lib/eventWindow";
 import EventActions from "@/components/EventActions";
 import EventInfoEditor from "@/components/EventInfoEditor";
 import MempelaiAccess from "@/components/MempelaiAccess";
+import FrameManager from "@/components/FrameManager";
+import FrameUpload from "@/components/FrameUpload";
+import FrameTextEditor from "@/components/FrameTextEditor";
+import Section from "@/components/Section";
+import { frameTextFromEvent } from "@/lib/frameTextConfig";
 
 export const metadata = { title: "Detail Event | Virtual Photobooth MyCard" };
 
@@ -26,7 +31,8 @@ export default async function EventDetailPage({ params }) {
   const sc = eventScope(session, "e", 2);
   const { rows } = await query(
     `SELECT e.id, e.name, e.slug, to_char(e.event_date, 'YYYY-MM-DD') AS event_date, e.status, e.timezone,
-            e.mempelai_id
+            e.mempelai_id,
+            e.frame_text_top, e.frame_text_name, e.frame_text_style
        FROM events e
       WHERE e.id = $1 AND ${sc.clause}`,
     [id, ...sc.params],
@@ -34,10 +40,23 @@ export default async function EventDetailPage({ params }) {
   const event = rows[0];
   if (!event) notFound();
 
-  // Bagian khusus admin: akun mempelai.
+  // Font sendiri untuk teks frame (admin dan mempelai pemilik event).
+  const fontResult = await query(
+    "SELECT id, name, url FROM event_fonts WHERE event_id = $1 ORDER BY created_at",
+    [event.id],
+  );
+  const fonts = fontResult.rows;
+
+  // Bagian khusus admin: daftar frame dan akun mempelai.
+  let frames = [];
   let mempelai = null;
   let daftarMempelai = [];
   if (admin) {
+    const frameResult = await query(
+      "SELECT id, name, image_url FROM frames WHERE event_id = $1 ORDER BY created_at",
+      [event.id],
+    );
+    frames = frameResult.rows;
     const mp = await query("SELECT id, name, username FROM users WHERE role = 'mempelai' ORDER BY username");
     daftarMempelai = mp.rows;
     mempelai = mp.rows.find((m) => m.id === event.mempelai_id) ?? null;
@@ -78,6 +97,21 @@ export default async function EventDetailPage({ params }) {
           </section>
         )}
       </div>
+
+      <Section title="Teks Frame">
+        <FrameTextEditor
+          eventId={event.id}
+          fonts={fonts}
+          saved={{ top: event.frame_text_top, name: event.frame_text_name, style: event.frame_text_style }}
+        />
+      </Section>
+
+      {admin && (
+        <Section title="Frame Foto">
+          <FrameManager eventId={event.id} frames={frames} frameText={frameTextFromEvent(event)} />
+          <FrameUpload eventId={event.id} frameText={frameTextFromEvent(event)} />
+        </Section>
+      )}
     </main>
   );
 }

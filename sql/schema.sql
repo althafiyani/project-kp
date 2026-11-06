@@ -21,6 +21,9 @@ CREATE TABLE events (
   slug               VARCHAR(150) NOT NULL UNIQUE,
   event_date         DATE,
   opening_design_url TEXT,
+  frame_text_top VARCHAR(40),
+  frame_text_name VARCHAR(60),
+  frame_text_style JSONB,
   qr_code            TEXT,
   mempelai_id        UUID REFERENCES users(id) ON DELETE SET NULL,
   status             VARCHAR(10) NOT NULL DEFAULT 'active'
