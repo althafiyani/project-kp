@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.6.0 - Link, QR Code, dan tunnel HTTPS
+
+Salin link event, unduh QR Code, alamat otomatis dari Cloudflare Tunnel.
+
 ## v0.5.0 - Halaman tamu: pembuka dan pilih frame
 
 Alur pembuka, pilih frame, dan pemberitahuan event yang belum dibuka atau sudah selesai.

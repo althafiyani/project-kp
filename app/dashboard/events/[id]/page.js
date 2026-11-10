@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import QRCode from "qrcode";
 import { getSession } from "@/lib/auth";
 import { eventScope, isAdmin } from "@/lib/access";
 import { query } from "@/lib/db";
 import { isUuid } from "@/lib/api";
 import { formatTanggal } from "@/lib/format";
-import { card } from "@/lib/ui";
+import { getBaseUrl } from "@/lib/url";
+import { card, btnOutline, warnBox } from "@/lib/ui";
 import { accessInfo } from "@/lib/eventWindow";
+import CopyButton from "@/components/CopyButton";
 import EventActions from "@/components/EventActions";
 import EventInfoEditor from "@/components/EventInfoEditor";
 import MempelaiAccess from "@/components/MempelaiAccess";
@@ -62,6 +65,15 @@ export default async function EventDetailPage({ params }) {
     mempelai = mp.rows.find((m) => m.id === event.mempelai_id) ?? null;
   }
 
+  const baseUrl = await getBaseUrl();
+  const link = `${baseUrl}/event/${event.slug}`;
+  const qr = await QRCode.toDataURL(link, {
+    width: 640,
+    margin: 2,
+    errorCorrectionLevel: "M",
+  });
+  const lokal = /localhost|127\.0\.0\.1|192\.168\.|10\./.test(baseUrl);
+
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-10 sm:px-6">
       <Link href="/dashboard" className="text-sm text-muted hover:text-gold hover:underline">
@@ -89,6 +101,32 @@ export default async function EventDetailPage({ params }) {
             </p>
           </div>
         )}
+
+        <section className="space-y-3 border-t border-line pt-5" aria-label="Link dan QR Code">
+          <h2 className="font-semibold text-gold">Link dan QR Code</h2>
+
+          <p className="break-all rounded-lg bg-ink px-3 py-2 font-mono text-sm text-fg">{link}</p>
+
+          <div className="flex flex-wrap gap-2">
+            <CopyButton text={link} />
+            <a href={link} target="_blank" rel="noopener noreferrer" className={btnOutline}>
+              Buka halaman tamu
+            </a>
+            <a href={qr} download={`qr-${event.slug}.png`} className={btnOutline}>
+              Unduh QR Code
+            </a>
+          </div>
+
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qr} alt={`QR Code untuk ${event.name}`} className="h-64 w-64 rounded-lg bg-white" />
+
+          {lokal && (
+            <p className={warnBox}>
+              Link ini masih alamat lokal, jadi QR-nya tidak bisa dibuka dari HP. Setelah
+              aplikasi di-deploy ke Vercel, link dan QR otomatis memakai alamat Vercel.
+            </p>
+          )}
+        </section>
 
         {admin && (
           <section className="space-y-3 border-t border-line pt-5" aria-label="Akses Mempelai">
