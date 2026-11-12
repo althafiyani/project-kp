@@ -26,12 +26,20 @@ export default async function GuestOpeningPage({ params }) {
     frames = rows;
   }
 
+  // Foto opening: hanya slot yang sudah ada fotonya. Warna polaroid tersimpan di opening_frame_N.
+  const openingItems = [1, 2].map((n) => {
+    const photo = event[`opening_photo_${n}`];
+    return photo ? { photo, color: event[`opening_frame_${n}`] } : null;
+  });
+
   return (
     <GuestFlow
       slug={slug}
       name={event.name}
       dateText={formatTanggal(event.event_date)}
       openingUrl={event.opening_design_url}
+      openingItems={openingItems}
+      openingTitle={event.opening_title}
       frameText={frameTextFromEvent(event)}
       active={active}
       closed={event.closed}

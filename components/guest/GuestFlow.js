@@ -3,6 +3,7 @@
 import { useState } from "react";
 import FramePicker from "@/components/guest/FramePicker";
 import InactiveNotice from "@/components/guest/InactiveNotice";
+import OpeningCollage from "@/components/guest/OpeningCollage";
 
 // Opening + Pilih Frame dalam satu layar: saat amplop diketuk, halaman Opening
 // bergeser ke atas dan halaman Pilih Frame naik dari bawah (seperti di-scroll).
@@ -10,15 +11,22 @@ const layer =
   "absolute inset-0 overflow-y-auto transition-transform duration-700 ease-in-out motion-reduce:transition-none";
 const column = "mx-auto flex min-h-full w-full max-w-[520px] flex-col px-5 py-6 md:py-10";
 
-// Teks judul halaman pembuka.
+// Teks judul bawaan kalau vendor belum mengisi sendiri.
 const DEFAULT_TITLE = "LET'S CELEBRATE LOVE";
 
-export default function GuestFlow({ slug, name, dateText, openingUrl, frameText = null, active, closed = null, frames }) {
+export default function GuestFlow({ slug, name, dateText, openingUrl, openingItems = [], openingTitle, frameText = null, active, closed = null, frames }) {
   const [stage, setStage] = useState("opening");
   const inFrame = stage === "frame";
 
-  // Opening: gambar amplop, atau kotak bertuliskan nama event.
-  const amplop = (
+  const adaFoto = openingItems.some(Boolean);
+
+  // Opening: 2 foto berframe yang bertumpuk. Kalau belum diatur, pakai gambar amplop lama
+  // atau kotak bertuliskan nama event.
+  const amplop = adaFoto ? (
+    <div className="envelope-float w-[min(calc(100vw-2.5rem),calc(50dvh*1.087),480px)]">
+      <OpeningCollage items={openingItems} name={name} />
+    </div>
+  ) : (
     <div className="aspect-[353/420] w-[min(100%,calc(58dvh*0.8405),460px)] overflow-hidden rounded-[14px]">
       {openingUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -47,7 +55,7 @@ export default function GuestFlow({ slug, name, dateText, openingUrl, frameText 
         <div className={`${column} items-center justify-center gap-6 text-center`}>
           <h1 className="sr-only">{name}</h1>
           <p className="whitespace-pre-line text-lg font-bold leading-6 tracking-[-0.45px] md:text-2xl">
-            {DEFAULT_TITLE}
+            {openingTitle || DEFAULT_TITLE}
           </p>
 
           {active ? (

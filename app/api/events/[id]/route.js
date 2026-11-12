@@ -5,11 +5,11 @@ import { updateEventSchema, firstError } from "@/lib/events";
 import { deleteFile } from "@/lib/storage";
 
 // Kolom yang boleh diubah (daftar putih, bukan dari input pengguna).
-const KOLOM = ["name", "slug", "event_date", "status", "timezone", "mempelai_id",
+const KOLOM = ["name", "slug", "event_date", "status", "timezone", "mempelai_id", "opening_title",
   "frame_text_top", "frame_text_name", "frame_text_style"];
 
 // Kolom yang boleh diubah mempelai pemilik event.
-const KOLOM_MEMPELAI = ["frame_text_top", "frame_text_name", "frame_text_style"];
+const KOLOM_MEMPELAI = ["opening_title", "frame_text_top", "frame_text_name", "frame_text_style"];
 
 // Admin boleh mengubah semua kolom; mempelai pemilik event hanya KOLOM_MEMPELAI. Hapus: hanya admin.
 export async function PATCH(request, { params }) {
@@ -28,7 +28,7 @@ export async function PATCH(request, { params }) {
   const parsed = updateEventSchema.safeParse(body);
   if (!parsed.success) return jsonError(firstError(parsed.error), 400);
 
-  // Mempelai hanya boleh mengubah teks frame; sisanya khusus admin.
+  // Mempelai hanya boleh mengubah teks judul opening dan teks frame; sisanya khusus admin.
   if (!admin && Object.keys(parsed.data).some((k) => !KOLOM_MEMPELAI.includes(k))) {
     return jsonError("Hanya admin yang boleh mengubah bagian ini.", 403);
   }
@@ -56,7 +56,7 @@ export async function PATCH(request, { params }) {
     const { rows } = await query(
       `UPDATE events SET ${sets.join(", ")}
         WHERE id = $${values.length}
-        RETURNING id, name, slug, to_char(event_date, 'YYYY-MM-DD') AS event_date, status, mempelai_id`,
+        RETURNING id, name, slug, to_char(event_date, 'YYYY-MM-DD') AS event_date, status, mempelai_id, opening_title`,
       values,
     );
     if (rows.length === 0) return jsonError("Event tidak ditemukan.", 404);

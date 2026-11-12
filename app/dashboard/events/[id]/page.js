@@ -13,6 +13,7 @@ import CopyButton from "@/components/CopyButton";
 import EventActions from "@/components/EventActions";
 import EventInfoEditor from "@/components/EventInfoEditor";
 import MempelaiAccess from "@/components/MempelaiAccess";
+import OpeningUpload from "@/components/OpeningUpload";
 import FrameManager from "@/components/FrameManager";
 import FrameUpload from "@/components/FrameUpload";
 import FrameTextEditor from "@/components/FrameTextEditor";
@@ -34,7 +35,8 @@ export default async function EventDetailPage({ params }) {
   const sc = eventScope(session, "e", 2);
   const { rows } = await query(
     `SELECT e.id, e.name, e.slug, to_char(e.event_date, 'YYYY-MM-DD') AS event_date, e.status, e.timezone,
-            e.mempelai_id,
+            e.opening_design_url, e.mempelai_id,
+            e.opening_photo_1, e.opening_frame_1, e.opening_photo_2, e.opening_frame_2, e.opening_title,
             e.frame_text_top, e.frame_text_name, e.frame_text_style
        FROM events e
       WHERE e.id = $1 AND ${sc.clause}`,
@@ -135,6 +137,20 @@ export default async function EventDetailPage({ params }) {
           </section>
         )}
       </div>
+
+      {/* Foto opening dan teks frame: bisa diatur vendor (admin) maupun mempelai pemilik event. */}
+      <Section title="Upload Foto Opening">
+        <OpeningUpload
+          eventId={event.id}
+          legacyUrl={event.opening_design_url}
+          title={event.opening_title ?? ""}
+          slots={[1, 2].map((n) =>
+            event[`opening_photo_${n}`]
+              ? { photo: event[`opening_photo_${n}`], frame: event[`opening_frame_${n}`] }
+              : null,
+          )}
+        />
+      </Section>
 
       <Section title="Teks Frame">
         <FrameTextEditor

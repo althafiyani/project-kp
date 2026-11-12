@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.7.0 - Foto opening polaroid
+
+Dua foto pembuka berbingkai polaroid berwarna dan judul pembuka yang bisa diubah.
+
 ## v0.6.0 - Link, QR Code, dan tunnel HTTPS
 
 Salin link event, unduh QR Code, alamat otomatis dari Cloudflare Tunnel.
