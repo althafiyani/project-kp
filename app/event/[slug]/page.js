@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import GuestFlow from "@/components/guest/GuestFlow";
 import { getGuestEvent } from "@/lib/guest";
 import { formatTanggal } from "@/lib/format";
+import { themeFromEvent } from "@/lib/theme";
 import { query } from "@/lib/db";
 import { frameTextFromEvent } from "@/lib/frameTextConfig";
 
@@ -41,6 +42,7 @@ export default async function GuestOpeningPage({ params }) {
       openingItems={openingItems}
       openingTitle={event.opening_title}
       frameText={frameTextFromEvent(event)}
+      theme={themeFromEvent(event)}
       active={active}
       closed={event.closed}
       frames={frames}

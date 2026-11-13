@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.8.0 - Tema warna halaman tamu
+
+Warna latar dan aksen per event beserta pilihan cepat.
+
 ## v0.7.0 - Foto opening polaroid
 
 Dua foto pembuka berbingkai polaroid berwarna dan judul pembuka yang bisa diubah.

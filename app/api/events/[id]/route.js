@@ -6,7 +6,7 @@ import { deleteFile } from "@/lib/storage";
 
 // Kolom yang boleh diubah (daftar putih, bukan dari input pengguna).
 const KOLOM = ["name", "slug", "event_date", "status", "timezone", "mempelai_id", "opening_title",
-  "frame_text_top", "frame_text_name", "frame_text_style"];
+  "frame_text_top", "frame_text_name", "frame_text_style", "theme_dark", "theme_gold"];
 
 // Kolom yang boleh diubah mempelai pemilik event.
 const KOLOM_MEMPELAI = ["opening_title", "frame_text_top", "frame_text_name", "frame_text_style"];

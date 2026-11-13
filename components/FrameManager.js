@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FRAME_TEMPLATES } from "@/lib/frameTemplates";
+import { goldA } from "@/lib/theme";
 import { useFrame } from "@/lib/useFrame";
 import { btnOutline, okBox, errBox } from "@/lib/ui";
 import FrameArt from "@/components/guest/FrameArt";
@@ -46,7 +47,7 @@ function FrameTile({ item, checked, busy, onToggle, text }) {
           <CheckMark checked={checked} />
         </span>
         <span className="flex h-44 items-center justify-center rounded bg-ink p-2">
-          <FrameArt src={item.image} alt={item.name} glow="color-mix(in srgb, var(--gold) 25%, transparent)" radius={8} className="h-full" text={text} />
+          <FrameArt src={item.image} alt={item.name} glow={goldA(0.25)} radius={8} className="h-full" text={text} />
         </span>
         <span className="block">
           <span className="block text-sm text-fg">{item.name}</span>

@@ -17,6 +17,7 @@ import OpeningUpload from "@/components/OpeningUpload";
 import FrameManager from "@/components/FrameManager";
 import FrameUpload from "@/components/FrameUpload";
 import FrameTextEditor from "@/components/FrameTextEditor";
+import ThemeEditor from "@/components/ThemeEditor";
 import Section from "@/components/Section";
 import { frameTextFromEvent } from "@/lib/frameTextConfig";
 
@@ -37,7 +38,8 @@ export default async function EventDetailPage({ params }) {
     `SELECT e.id, e.name, e.slug, to_char(e.event_date, 'YYYY-MM-DD') AS event_date, e.status, e.timezone,
             e.opening_design_url, e.mempelai_id,
             e.opening_photo_1, e.opening_frame_1, e.opening_photo_2, e.opening_frame_2, e.opening_title,
-            e.frame_text_top, e.frame_text_name, e.frame_text_style
+            e.frame_text_top, e.frame_text_name, e.frame_text_style,
+            e.theme_dark, e.theme_gold
        FROM events e
       WHERE e.id = $1 AND ${sc.clause}`,
     [id, ...sc.params],
@@ -151,6 +153,12 @@ export default async function EventDetailPage({ params }) {
           )}
         />
       </Section>
+
+      {admin && (
+        <Section title="Warna Halaman Tamu">
+          <ThemeEditor eventId={event.id} saved={{ dark: event.theme_dark, gold: event.theme_gold }} />
+        </Section>
+      )}
 
       <Section title="Teks Frame">
         <FrameTextEditor

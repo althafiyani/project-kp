@@ -4,6 +4,7 @@ import GuestShell from "@/components/guest/GuestShell";
 import InactiveNotice from "@/components/guest/InactiveNotice";
 import FramePicker from "@/components/guest/FramePicker";
 import { getGuestEvent } from "@/lib/guest";
+import { themeFromEvent } from "@/lib/theme";
 import { query } from "@/lib/db";
 import { frameTextFromEvent } from "@/lib/frameTextConfig";
 
@@ -24,7 +25,7 @@ export default async function ChooseFramePage({ params }) {
   }
 
   return (
-    <GuestShell className="text-center" fixed>
+    <GuestShell className="text-center" fixed theme={themeFromEvent(event)}>
       <h1 className="text-lg font-bold leading-6 tracking-[-0.45px]">PILIH FRAME</h1>
       {event.status === "active" ? (
         <FramePicker frames={frames} frameText={frameTextFromEvent(event)} />

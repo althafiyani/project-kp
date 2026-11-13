@@ -14,7 +14,7 @@ const column = "mx-auto flex min-h-full w-full max-w-[520px] flex-col px-5 py-6 
 // Teks judul bawaan kalau vendor belum mengisi sendiri.
 const DEFAULT_TITLE = "LET'S CELEBRATE LOVE";
 
-export default function GuestFlow({ slug, name, dateText, openingUrl, openingItems = [], openingTitle, frameText = null, active, closed = null, frames }) {
+export default function GuestFlow({ slug, name, dateText, openingUrl, openingItems = [], openingTitle, frameText = null, theme, active, closed = null, frames }) {
   const [stage, setStage] = useState("opening");
   const inFrame = stage === "frame";
 
@@ -45,7 +45,7 @@ export default function GuestFlow({ slug, name, dateText, openingUrl, openingIte
   );
 
   return (
-    <div className="guest-bg relative h-dvh overflow-hidden font-heritage text-cream">
+    <div className="guest-bg relative h-dvh overflow-hidden font-heritage text-cream" style={theme}>
       {/* Layer 1: Opening */}
       <div
         className={`${layer} ${inFrame ? "-translate-y-full" : "translate-y-0"}`}
