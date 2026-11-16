@@ -28,7 +28,7 @@ export default async function ChooseFramePage({ params }) {
     <GuestShell className="text-center" fixed theme={themeFromEvent(event)}>
       <h1 className="text-lg font-bold leading-6 tracking-[-0.45px]">PILIH FRAME</h1>
       {event.status === "active" ? (
-        <FramePicker frames={frames} frameText={frameTextFromEvent(event)} />
+        <FramePicker slug={slug} frames={frames} frameText={frameTextFromEvent(event)} />
       ) : (
         <div className="mt-10">
           <InactiveNotice closed={event.closed} dateText={formatTanggal(event.event_date)} />

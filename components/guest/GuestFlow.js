@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import FramePicker from "@/components/guest/FramePicker";
 import InactiveNotice from "@/components/guest/InactiveNotice";
 import OpeningCollage from "@/components/guest/OpeningCollage";
@@ -102,7 +103,10 @@ export default function GuestFlow({ slug, name, dateText, openingUrl, openingIte
             </button>
             <h2 className="text-lg font-bold leading-6 tracking-[-0.45px] md:text-2xl">PILIH FRAME</h2>
           </div>
-          <FramePicker frames={frames} frameText={frameText} />
+          <FramePicker slug={slug} frames={frames} frameText={frameText} />
+          <Link href={`/event/${slug}/gallery`} className="mt-4 text-sm underline opacity-80">
+            Lihat galeri tamu
+          </Link>
         </div>
       </div>
     </div>

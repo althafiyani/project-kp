@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.9.0 - Kamera photobooth, unggah foto, dan galeri tamu
+
+Ambil foto per lubang, susun strip, unggah dengan pembatasan, galeri tamu. Disatukan karena satu alur.
+
 ## v0.8.0 - Tema warna halaman tamu
 
 Warna latar dan aksen per event beserta pilihan cepat.

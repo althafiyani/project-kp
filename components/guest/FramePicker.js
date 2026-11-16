@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { pillButton } from "@/lib/ui";
 import FrameArt from "@/components/guest/FrameArt";
 
-export default function FramePicker({ frames, frameText = null }) {
+export default function FramePicker({ slug, frames, frameText = null }) {
+  const router = useRouter();
   const [selected, setSelected] = useState(null);
 
   if (frames.length === 0) {
@@ -58,6 +61,14 @@ export default function FramePicker({ frames, frameText = null }) {
         <p className="text-sm opacity-80" aria-live="polite">
           {selected ? "Frame dipilih." : "Ketuk salah satu frame untuk memilih."}
         </p>
+        <button
+          type="button"
+          disabled={!selected}
+          onClick={() => router.push(`/event/${slug}/camera?frame=${selected}`)}
+          className={pillButton}
+        >
+          Pilih Frame Photobooth
+        </button>
       </div>
     </>
   );
