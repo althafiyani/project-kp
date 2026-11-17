@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.10.0 - Filter foto dan ilustrasi
+
+20 filter warna, 5 filter ilustrasi (Web Worker), pembanding sebelum/sesudah.
+
 ## v0.9.0 - Kamera photobooth, unggah foto, dan galeri tamu
 
 Ambil foto per lubang, susun strip, unggah dengan pembatasan, galeri tamu. Disatukan karena satu alur.

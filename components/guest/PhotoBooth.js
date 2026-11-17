@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { loadFrame, composeStrip, canvasToBlob } from "@/lib/photoStrip";
 import { ensureTextFonts } from "@/lib/frameText";
+import { FILTERS, FILTER_GROUPS, ILLUSTRATION_GROUP, filtersOf, makeThumbs, renderFiltered, renderFilteredAsync } from "@/lib/photoFilters";
+import BeforeAfter from "@/components/guest/BeforeAfter";
 import { pillButton, pillButtonGhost, okBox, errBox } from "@/lib/ui";
 import FrameArt from "@/components/guest/FrameArt";
 import FrameStage from "@/components/guest/FrameStage";
@@ -11,6 +13,43 @@ import FrameStage from "@/components/guest/FrameStage";
 const COUNTDOWN_FROM = 3; // hitung mundur sebelum jepret
 const AUTO_CONTINUE = 5; // detik jeda di layar cek foto sebelum lanjut otomatis
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Tata letak layar filter, tergantung bentuk frame:
+//   Frame sempit (450 x 1350): selalu berdampingan, strip di kiri dan daftar pilihan 2 kolom di kanan
+//     (di HP maupun laptop).
+//   Frame lebar (1080 x 1350): di laptop berdampingan; di HP strip di atas dan daftar pilihan
+//     di bawahnya (4 kolom, bisa di-scroll).
+// Lebar strip dihitung dari tingginya supaya rasio frame selalu terjaga (tidak gepeng).
+const GRID_BASE =
+  "grid min-w-0 content-start [grid-auto-rows:max-content] gap-2 overflow-y-auto pr-1 [scrollbar-color:color-mix(in_srgb,var(--gold)_55%,transparent)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gold/50 [&::-webkit-scrollbar-track]:bg-transparent";
+// Di laptop (sm ke atas) area ini melebar keluar dari kolom 520px, selalu di tengah layar, dan
+// tinggi strip mengikuti sisa tinggi layar (di antara judul dan tombol bawah).
+const BREAKOUT =
+  "sm:my-auto sm:w-[calc(min(var(--sw),var(--h)*var(--r))_+_1.5rem_+_min(36vw,360px))] sm:max-w-none sm:shrink-0 sm:self-center sm:items-stretch sm:justify-center";
+const PANEL_W = "sm:w-[min(36vw,360px)] sm:flex-none";
+const LAYOUT = {
+  // sempit
+  row: {
+    split: `flex w-full flex-row items-start justify-center gap-3 [--h:min(calc(100dvh-14rem),620px)] [--sw:48%] sm:gap-6 sm:[--h:calc(100dvh-14rem)] sm:[--sw:min(52vw,620px)] ${BREAKOUT}`,
+    panelH: "h-[var(--h)] sm:h-auto sm:self-stretch sm:[contain:size]",
+    grid: `${GRID_BASE} flex-1 grid-cols-2`,
+    stickerPanel: `flex min-w-0 flex-1 flex-col gap-2 ${PANEL_W}`,
+  },
+  // lebar
+  stack: {
+    split: `flex w-full flex-col items-center gap-3 [--h:min(44dvh,420px)] [--sw:100%] sm:flex-row sm:gap-6 sm:[--h:calc(100dvh-14rem)] sm:[--sw:min(56vw,700px)] ${BREAKOUT}`,
+    panelH: "h-[max(9.5rem,calc(100dvh-var(--h)-13rem))] sm:h-auto sm:self-stretch sm:[contain:size]",
+    grid: `${GRID_BASE} w-full grid-cols-4 sm:flex-1 sm:grid-cols-2`,
+    stickerPanel: `flex w-full min-w-0 flex-col gap-2 sm:flex-1 ${PANEL_W}`,
+  },
+};
+const layoutFor = (info) => (info.width / info.height > 0.5 ? LAYOUT.stack : LAYOUT.row);
+const stageStyle = (info) => ({
+  "--r": info.width / info.height,
+  width: "min(var(--sw), calc(var(--h) * var(--r)))",
+  aspectRatio: "var(--r)",
+  filter: "drop-shadow(0 0 14px color-mix(in srgb, var(--gold) 50%, transparent))",
+});
 
 function cameraErrorMessage(err) {
   switch (err?.name) {
@@ -30,7 +69,7 @@ function cameraErrorMessage(err) {
 
 export default function PhotoBooth({ slug, frame, frameText = null }) {
   // loading -> ready -> live (ambil 1 foto) -> confirm (cek foto itu) -> ... -> review (hasil strip)
-  // -> final (upload ke galeri)
+  // -> filter (pilih filter) -> final (upload ke galeri)
   const [phase, setPhase] = useState("loading");
   const [error, setError] = useState("");
   const [frameInfo, setFrameInfo] = useState(null); // { img, width, height, slots, edge }
@@ -45,6 +84,14 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
   const [resultUrl, setResultUrl] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [filterId, setFilterId] = useState("normal");
+  const [filterGroup, setFilterGroup] = useState(FILTER_GROUPS[0].id); // kelompok filter yang sedang ditampilkan
+  const [thumbs, setThumbs] = useState({}); // contoh tiap filter (dataURL)
+  const [beforeCanvas, setBeforeCanvas] = useState(null); // strip tanpa filter, untuk pembanding sebelum/sesudah
+  const beforeCache = useRef(null); // { photos, canvas }: strip tanpa filter untuk foto yang sama
+  const filterCache = useRef(null); // { photos, frameInfo, map: Map(filterId -> canvas) }: hasil filter yang sudah jadi
+  const illusAktif = FILTERS.find((f) => f.id === filterId)?.group === ILLUSTRATION_GROUP; // filter ilustrasi = ada pembanding
+  const [processing, setProcessing] = useState(false); // filter sedang diterapkan
   const [autoLeft, setAutoLeft] = useState(AUTO_CONTINUE);
 
   const savingRef = useRef(false);
@@ -56,6 +103,8 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
   const acceptRef = useRef(null);
   const acceptingRef = useRef(false);
   const audioCtxRef = useRef(null);
+  const previewRef = useRef(null); // tempat canvas pratinjau di layar filter
+  const filteredRef = useRef(null); // canvas strip dengan filter yang sedang dipilih
   const fromReviewRef = useRef(false); // true = sedang mengulang satu lubang dari layar hasil
 
   const stopStream = useCallback(() => {
@@ -298,6 +347,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     setPending(null);
     setError("");
     setSaved(false);
+    setFilterId("normal");
+    setThumbs({});
+    filteredRef.current = null;
     blobRef.current = null;
     setPhase("live");
   }
@@ -327,13 +379,89 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     }
   }
 
-  // Dari layar hasil -> layar akhir (upload ke galeri).
-  function goFinal() {
-    if (!blobRef.current) return;
-    setSaved(false);
+  // Dari layar hasil -> layar filter. Contoh tiap filter dibuat dari foto pertama.
+  function goFilter() {
     setError("");
-    setPhase("final");
+    setFilterId("normal");
+    try {
+      setThumbs(makeThumbs(photos[0].canvas));
+    } catch {
+      setThumbs({});
+    }
+    setPhase("filter");
   }
+
+  // Dari layar filter -> layar akhir: strip + filter dijadikan file yang akan diunggah.
+  async function goFinal() {
+    const base = filteredRef.current;
+    if (!base || processing) return;
+    try {
+      const blob = await canvasToBlob(base, "image/jpeg", 0.92);
+      blobRef.current = blob;
+      if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
+      const url = URL.createObjectURL(blob);
+      resultUrlRef.current = url;
+      setResultUrl(url);
+      setSaved(false);
+      setError("");
+      setPhase("final");
+    } catch {
+      setError("Gagal menyimpan hasil. Coba lagi.");
+    }
+  }
+
+  // Terapkan filter yang dipilih ke semua foto, lalu tampilkan di pratinjau kiri.
+  useEffect(() => {
+    if (phase !== "filter" || !frameInfo) return;
+    let batal = false;
+    setProcessing(true);
+    const t = setTimeout(async () => {
+      try {
+        const adalahIlustrasi = FILTERS.find((f) => f.id === filterId)?.group === ILLUSTRATION_GROUP;
+        const rawPhotos = photos.map((p) => p.canvas);
+        // Hasil filter disimpan per set foto: pindah-pindah filter tidak diproses ulang.
+        if (filterCache.current?.photos !== photos || filterCache.current?.frameInfo !== frameInfo) {
+          filterCache.current = { photos, frameInfo, map: new Map() };
+        }
+        const cache = filterCache.current;
+        let canvas = cache.map.get(filterId);
+        if (!canvas) {
+          // Filter ilustrasi berat: dikerjakan paralel di Web Worker supaya halaman tidak membeku.
+          canvas = adalahIlustrasi
+            ? await renderFilteredAsync(frameInfo, rawPhotos, filterId, frameText)
+            : renderFiltered(frameInfo, rawPhotos, filterId, frameText);
+          if (batal) return;
+          // Hanya filter ilustrasi yang disimpan (yang mahal diproses), dan paling banyak 6, supaya memori HP aman.
+          if (adalahIlustrasi) {
+            cache.map.set(filterId, canvas);
+            if (cache.map.size > 6) cache.map.delete(cache.map.keys().next().value);
+          }
+        }
+        if (batal) return;
+        filteredRef.current = canvas;
+        canvas.style.cssText = "width:100%;height:100%";
+        previewRef.current?.replaceChildren(canvas);
+        // Filter ilustrasi: siapkan juga strip tanpa filter untuk pembanding (dibuat sekali per set foto).
+        if (adalahIlustrasi) {
+          if (beforeCache.current?.photos !== photos) {
+            beforeCache.current = {
+              photos,
+              canvas: renderFiltered(frameInfo, rawPhotos, "normal", frameText),
+            };
+          }
+          setBeforeCanvas(beforeCache.current.canvas);
+        }
+      } catch {
+        if (!batal) setError("Filter gagal diterapkan. Pilih Normal atau coba filter lain.");
+      } finally {
+        if (!batal) setProcessing(false);
+      }
+    }, 30);
+    return () => {
+      batal = true;
+      clearTimeout(t);
+    };
+  }, [phase, filterId, frameInfo, photos]);
 
   useEffect(() => {
     acceptRef.current = accept;
@@ -357,13 +485,16 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
 
   const slots = frameInfo?.slots ?? [];
   const total = slots.length;
+  const lay = frameInfo ? layoutFor(frameInfo) : LAYOUT.row; // tata letak layar filter
 
   const judul =
     phase === "live" || phase === "confirm"
       ? `FOTO ${current + 1} DARI ${total}`
       : phase === "review"
         ? "HASIL FOTO"
-        : phase === "final"
+        : phase === "filter"
+          ? "PILIH FILTER"
+          : phase === "final"
             ? "SIMPAN FOTO"
             : "SIAP BERFOTO?";
 
@@ -493,7 +624,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
         </>
       )}
 
-      {/* 1) Semua lubang sudah terisi: cek hasilnya, ulang atau lanjut. */}
+      {/* 1) Semua lubang sudah terisi: cek hasilnya, ulang atau lanjut ke filter. */}
       {phase === "review" && resultUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -524,14 +655,99 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
             <button type="button" onClick={retakeAll} className={pillButtonGhost}>
               Take Ulang
             </button>
-            <button type="button" onClick={goFinal} className={pillButton}>
+            <button type="button" onClick={goFilter} className={pillButton}>
               Next
             </button>
           </div>
         </>
       )}
 
-      {/* 2) Hasil akhir: upload ke galeri. */}
+      {/* 2) Pilih filter. HP: hasil frame di atas, daftar filter di bawah (bisa di-scroll).
+          Layar lebar (sm ke atas): hasil frame di kiri, daftar filter 2 kolom di kanan. */}
+      {phase === "filter" && frameInfo && (
+        <>
+          <div className={lay.split} style={{ "--r": frameInfo.width / frameInfo.height }}>
+            <div className="relative shrink-0" style={stageStyle(frameInfo)}>
+              <div ref={previewRef} className="h-full w-full" aria-label="Pratinjau hasil dengan filter" />
+              {illusAktif && beforeCanvas && <BeforeAfter beforeCanvas={beforeCanvas} />}
+              {processing && (
+                <p
+                  role="status"
+                  className="absolute inset-x-0 bottom-2 mx-2 rounded bg-black/60 px-1 py-0.5 text-[10px] font-bold text-gold"
+                >
+                  Memproses...
+                </p>
+              )}
+            </div>
+
+            <div className={`${lay.stickerPanel} ${lay.panelH}`}>
+              {/* Pilihan kelompok filter: tombol oval berisi nama kelompok */}
+              <div role="group" aria-label="Kelompok filter" className="flex shrink-0 flex-wrap gap-1.5">
+                {FILTER_GROUPS.map((g) => {
+                  const dipilih = g.id === filterGroup;
+                  const adaAktif = filtersOf(g.id).some((f) => f.id === filterId);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      aria-pressed={dipilih}
+                      onClick={() => setFilterGroup(g.id)}
+                      className={`relative rounded-full border px-3 py-1 font-sans text-xs font-bold outline-none transition focus-visible:ring-2 focus-visible:ring-gold ${
+                        dipilih ? "border-gold bg-gold text-ink" : "border-gold/50 text-gold hover:bg-gold/10"
+                      }`}
+                    >
+                      {g.name}
+                      {adaAktif && !dipilih && (
+                        <span aria-label="berisi filter terpilih" className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gold ring-2 ring-ink" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div role="radiogroup" aria-label={`Pilihan filter ${FILTER_GROUPS.find((g) => g.id === filterGroup).name}`} className={`${lay.grid} min-h-0 flex-1`}>
+                {[FILTERS[0], ...filtersOf(filterGroup)].map((f) => {
+                  const aktif = f.id === filterId;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={aktif}
+                      onClick={() => setFilterId(f.id)}
+                      className={`relative block w-full overflow-hidden rounded-lg border-2 bg-surface-2 outline-none transition focus-visible:ring-2 focus-visible:ring-gold ${
+                        aktif ? "border-gold shadow-[0_0_10px_color-mix(in_srgb,var(--gold)_60%,transparent)]" : "border-line"
+                      }`}
+                    >
+                      {/* Penyangga tinggi (rasio 7:8). Dipakai agar tinggi kotak pasti mengikuti lebarnya di semua browser. */}
+                      <span aria-hidden="true" className="block pt-[114.3%]" />
+                      {thumbs[f.id] && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumbs[f.id]} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+                      )}
+                      <span className="absolute inset-x-0 bottom-0 bg-black/65 px-0.5 py-0.5 font-sans text-[10px] font-bold leading-tight text-gold">
+                        {f.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {errorBox}
+          <div className="mt-auto flex items-center gap-3 pt-1">
+            <button type="button" onClick={() => setPhase("review")} className={pillButtonGhost}>
+              Kembali
+            </button>
+            <button type="button" onClick={goFinal} disabled={processing} className={pillButton}>
+              Next
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* 3) Hasil akhir: upload ke galeri. */}
       {phase === "final" && resultUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -551,9 +767,11 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
           {errorBox}
           <div className="mt-auto flex flex-wrap items-center justify-center gap-3 pt-2">
             {!saved && (
-              <button type="button" onClick={() => setPhase("review")} disabled={saving} className={pillButtonGhost}>
-                Kembali
-              </button>
+              <>
+                <button type="button" onClick={() => setPhase("filter")} disabled={saving} className={pillButtonGhost}>
+                  Ganti Filter
+                </button>
+              </>
             )}
             <a href={resultUrl} download={`foto-${slug}.jpg`} className={pillButtonGhost}>
               Unduh Foto
