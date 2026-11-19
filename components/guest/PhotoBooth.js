@@ -6,15 +6,18 @@ import { loadFrame, composeStrip, canvasToBlob } from "@/lib/photoStrip";
 import { ensureTextFonts } from "@/lib/frameText";
 import { FILTERS, FILTER_GROUPS, ILLUSTRATION_GROUP, filtersOf, makeThumbs, renderFiltered, renderFilteredAsync } from "@/lib/photoFilters";
 import BeforeAfter from "@/components/guest/BeforeAfter";
+import { STICKERS, MAX_STICKERS, getSticker } from "@/lib/stickers";
+import { composeWithStickers } from "@/lib/stickerCompose";
 import { pillButton, pillButtonGhost, okBox, errBox } from "@/lib/ui";
 import FrameArt from "@/components/guest/FrameArt";
 import FrameStage from "@/components/guest/FrameStage";
+import StickerLayer from "@/components/guest/StickerLayer";
 
 const COUNTDOWN_FROM = 3; // hitung mundur sebelum jepret
 const AUTO_CONTINUE = 5; // detik jeda di layar cek foto sebelum lanjut otomatis
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Tata letak layar filter, tergantung bentuk frame:
+// Tata letak layar filter dan stiker, tergantung bentuk frame:
 //   Frame sempit (450 x 1350): selalu berdampingan, strip di kiri dan daftar pilihan 2 kolom di kanan
 //     (di HP maupun laptop).
 //   Frame lebar (1080 x 1350): di laptop berdampingan; di HP strip di atas dan daftar pilihan
@@ -69,7 +72,7 @@ function cameraErrorMessage(err) {
 
 export default function PhotoBooth({ slug, frame, frameText = null }) {
   // loading -> ready -> live (ambil 1 foto) -> confirm (cek foto itu) -> ... -> review (hasil strip)
-  // -> filter (pilih filter) -> final (upload ke galeri)
+  // -> filter (pilih filter) -> sticker (tambah stiker) -> final (upload ke galeri)
   const [phase, setPhase] = useState("loading");
   const [error, setError] = useState("");
   const [frameInfo, setFrameInfo] = useState(null); // { img, width, height, slots, edge }
@@ -93,6 +96,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
   const illusAktif = FILTERS.find((f) => f.id === filterId)?.group === ILLUSTRATION_GROUP; // filter ilustrasi = ada pembanding
   const [processing, setProcessing] = useState(false); // filter sedang diterapkan
   const [autoLeft, setAutoLeft] = useState(AUTO_CONTINUE);
+  const [stickers, setStickers] = useState([]); // stiker di strip: { uid, id, x, y, size, rot, flip }
+  const [selSticker, setSelSticker] = useState(null); // uid stiker yang sedang dipilih di strip
+  const [pickSticker, setPickSticker] = useState(null); // id stiker yang dipilih di daftar (belum ditambahkan)
 
   const savingRef = useRef(false);
   const videoRef = useRef(null);
@@ -104,6 +110,8 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
   const acceptingRef = useRef(false);
   const audioCtxRef = useRef(null);
   const previewRef = useRef(null); // tempat canvas pratinjau di layar filter
+  const stickerCanvasRef = useRef(null); // tempat canvas strip di layar stiker
+  const stickerUid = useRef(0);
   const filteredRef = useRef(null); // canvas strip dengan filter yang sedang dipilih
   const fromReviewRef = useRef(false); // true = sedang mengulang satu lubang dari layar hasil
 
@@ -349,6 +357,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     setSaved(false);
     setFilterId("normal");
     setThumbs({});
+    setStickers([]);
+    setSelSticker(null);
+    setPickSticker(null);
     filteredRef.current = null;
     blobRef.current = null;
     setPhase("live");
@@ -391,12 +402,54 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     setPhase("filter");
   }
 
-  // Dari layar filter -> layar akhir: strip + filter dijadikan file yang akan diunggah.
+  // Dari layar filter -> layar stiker (strip berfilter ditampilkan, stiker bisa ditambahkan).
+  function goSticker() {
+    if (!filteredRef.current || processing) return;
+    setError("");
+    setSelSticker(null);
+    setPhase("sticker");
+  }
+
+  // Menambah stiker yang dipilih di daftar ke tengah strip; langsung terpilih supaya bisa diatur.
+  function addSticker() {
+    const s = getSticker(pickSticker);
+    if (!s || stickers.length >= MAX_STICKERS) return;
+    const uid = ++stickerUid.current;
+    const jitter = () => (Math.random() - 0.5) * 0.12;
+    setStickers((list) => [
+      ...list,
+      { uid, id: s.id, x: 0.5 + jitter(), y: 0.42 + jitter(), size: 0.4, rot: 0, flip: false },
+    ]);
+    setSelSticker(uid);
+  }
+
+  const changeSticker = useCallback((uid, patch) => {
+    setStickers((list) => list.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  }, []);
+
+  function removeSticker(uid) {
+    setStickers((list) => list.filter((it) => it.uid !== uid));
+    setSelSticker((cur) => (cur === uid ? null : cur));
+  }
+
+  // Memilih stiker di strip sekaligus memindahkannya ke lapisan paling atas.
+  const selectSticker = useCallback((uid) => {
+    setSelSticker(uid);
+    if (uid != null) {
+      setStickers((list) => {
+        const it = list.find((x) => x.uid === uid);
+        return it && list[list.length - 1] !== it ? [...list.filter((x) => x !== it), it] : list;
+      });
+    }
+  }, []);
+
+  // Dari layar stiker -> layar akhir: strip + filter + stiker dijadikan file yang akan diunggah.
   async function goFinal() {
     const base = filteredRef.current;
     if (!base || processing) return;
     try {
-      const blob = await canvasToBlob(base, "image/jpeg", 0.92);
+      const canvas = stickers.length ? await composeWithStickers(base, stickers) : base;
+      const blob = await canvasToBlob(canvas, "image/jpeg", 0.92);
       blobRef.current = blob;
       if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
       const url = URL.createObjectURL(blob);
@@ -404,6 +457,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
       setResultUrl(url);
       setSaved(false);
       setError("");
+      setSelSticker(null);
       setPhase("final");
     } catch {
       setError("Gagal menyimpan hasil. Coba lagi.");
@@ -419,7 +473,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
       try {
         const adalahIlustrasi = FILTERS.find((f) => f.id === filterId)?.group === ILLUSTRATION_GROUP;
         const rawPhotos = photos.map((p) => p.canvas);
-        // Hasil filter disimpan per set foto: pindah-pindah filter tidak diproses ulang.
+        // Hasil filter disimpan per set foto: pindah-pindah filter (atau kembali dari layar stiker) tidak diproses ulang.
         if (filterCache.current?.photos !== photos || filterCache.current?.frameInfo !== frameInfo) {
           filterCache.current = { photos, frameInfo, map: new Map() };
         }
@@ -463,6 +517,13 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     };
   }, [phase, filterId, frameInfo, photos]);
 
+  // Layar stiker memakai ulang canvas strip berfilter yang sudah jadi.
+  useEffect(() => {
+    if (phase === "sticker" && filteredRef.current) {
+      stickerCanvasRef.current?.replaceChildren(filteredRef.current);
+    }
+  }, [phase]);
+
   useEffect(() => {
     acceptRef.current = accept;
   });
@@ -485,7 +546,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
 
   const slots = frameInfo?.slots ?? [];
   const total = slots.length;
-  const lay = frameInfo ? layoutFor(frameInfo) : LAYOUT.row; // tata letak layar filter
+  const lay = frameInfo ? layoutFor(frameInfo) : LAYOUT.row; // tata letak layar filter dan stiker
 
   const judul =
     phase === "live" || phase === "confirm"
@@ -494,7 +555,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
         ? "HASIL FOTO"
         : phase === "filter"
           ? "PILIH FILTER"
-          : phase === "final"
+          : phase === "sticker"
+            ? "TAMBAH STIKER"
+            : phase === "final"
             ? "SIMPAN FOTO"
             : "SIAP BERFOTO?";
 
@@ -740,8 +803,77 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
             <button type="button" onClick={() => setPhase("review")} className={pillButtonGhost}>
               Kembali
             </button>
-            <button type="button" onClick={goFinal} disabled={processing} className={pillButton}>
+            <button type="button" onClick={goSticker} disabled={processing} className={pillButton}>
               Next
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* 3) Stiker. HP: strip di atas, daftar stiker di bawah. Layar lebar: strip di kiri, daftar di kanan. */}
+      {phase === "sticker" && frameInfo && (
+        <>
+          <div className={lay.split} style={{ "--r": frameInfo.width / frameInfo.height }}>
+            <div className="relative shrink-0" style={stageStyle(frameInfo)}>
+              <div ref={stickerCanvasRef} className="h-full w-full" aria-label="Strip foto untuk diberi stiker" />
+              <StickerLayer
+                items={stickers}
+                selected={selSticker}
+                onSelect={selectSticker}
+                onChange={changeSticker}
+                onRemove={removeSticker}
+              />
+            </div>
+
+            <div className={`${lay.stickerPanel} ${lay.panelH}`}>
+              <div role="radiogroup" aria-label="Pilihan stiker" className={`${lay.grid} min-h-0 flex-1`}>
+                {STICKERS.map((s) => {
+                  const aktif = s.id === pickSticker;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={aktif}
+                      aria-label={s.name}
+                      onClick={() => setPickSticker(s.id)}
+                      className={`relative block w-full rounded-lg border-2 bg-surface-2 outline-none transition focus-visible:ring-2 focus-visible:ring-gold ${
+                        aktif ? "border-gold shadow-[0_0_10px_color-mix(in_srgb,var(--gold)_60%,transparent)]" : "border-line"
+                      }`}
+                    >
+                      <span aria-hidden="true" className="block pt-[100%]" />
+                      <span className="absolute inset-0 flex items-center justify-center p-1.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={s.src} alt="" draggable={false} loading="lazy" className="max-h-full max-w-full object-contain" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={addSticker}
+                disabled={!pickSticker || stickers.length >= MAX_STICKERS}
+                className={`${pillButton} w-full shrink-0 !px-2 !py-2 text-sm`}
+              >
+                Tambah Stiker
+              </button>
+            </div>
+          </div>
+
+          <p className="text-center font-sans text-[11px] text-muted">
+            {stickers.length === 0
+              ? "Pilih stiker, lalu tekan Tambah Stiker."
+              : "Seret untuk menggeser. Ketuk stiker untuk memutar, memperbesar, atau menghapus."}
+          </p>
+
+          {errorBox}
+          <div className="mt-auto flex items-center gap-3 pt-1">
+            <button type="button" onClick={() => setPhase("filter")} className={pillButtonGhost}>
+              Kembali
+            </button>
+            <button type="button" onClick={goFinal} className={pillButton}>
+              {stickers.length === 0 ? "Lewati" : "Next"}
             </button>
           </div>
         </>
@@ -770,6 +902,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
               <>
                 <button type="button" onClick={() => setPhase("filter")} disabled={saving} className={pillButtonGhost}>
                   Ganti Filter
+                </button>
+                <button type="button" onClick={goSticker} disabled={saving} className={pillButtonGhost}>
+                  Ganti Stiker
                 </button>
               </>
             )}

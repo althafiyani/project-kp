@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.11.0 - Stiker
+
+25 stiker yang bisa digeser, diputar, diperbesar, dan ditempel ke hasil foto.
+
 ## v0.10.0 - Filter foto dan ilustrasi
 
 20 filter warna, 5 filter ilustrasi (Web Worker), pembanding sebelum/sesudah.
