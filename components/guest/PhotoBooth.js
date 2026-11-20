@@ -12,6 +12,7 @@ import { pillButton, pillButtonGhost, okBox, errBox } from "@/lib/ui";
 import FrameArt from "@/components/guest/FrameArt";
 import FrameStage from "@/components/guest/FrameStage";
 import StickerLayer from "@/components/guest/StickerLayer";
+import VoiceRecorder from "@/components/guest/VoiceRecorder";
 
 const COUNTDOWN_FROM = 3; // hitung mundur sebelum jepret
 const AUTO_CONTINUE = 5; // detik jeda di layar cek foto sebelum lanjut otomatis
@@ -70,9 +71,15 @@ function cameraErrorMessage(err) {
   }
 }
 
+// Ekstensi file voice note menurut jenis rekamannya (Safari/iOS = mp4, Chrome = webm).
+function audioExt(blob) {
+  const t = blob?.type || "";
+  return t.includes("mp4") ? "m4a" : t.includes("ogg") ? "ogg" : "webm";
+}
+
 export default function PhotoBooth({ slug, frame, frameText = null }) {
   // loading -> ready -> live (ambil 1 foto) -> confirm (cek foto itu) -> ... -> review (hasil strip)
-  // -> filter (pilih filter) -> sticker (tambah stiker) -> final (upload ke galeri)
+  // -> filter (pilih filter) -> sticker (tambah stiker) -> final (rekam suara + upload ke galeri)
   const [phase, setPhase] = useState("loading");
   const [error, setError] = useState("");
   const [frameInfo, setFrameInfo] = useState(null); // { img, width, height, slots, edge }
@@ -87,6 +94,8 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
   const [resultUrl, setResultUrl] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [hasAudio, setHasAudio] = useState(false); // ada rekaman suara yang ikut diunggah
+  const [voiceSent, setVoiceSent] = useState(false);
   const [filterId, setFilterId] = useState("normal");
   const [filterGroup, setFilterGroup] = useState(FILTER_GROUPS[0].id); // kelompok filter yang sedang ditampilkan
   const [thumbs, setThumbs] = useState({}); // contoh tiap filter (dataURL)
@@ -107,6 +116,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
   const runRef = useRef(0); // naik tiap kali hitung mundur dibatalkan
   const resultUrlRef = useRef(null);
   const acceptRef = useRef(null);
+  const audioRef = useRef(null);
   const acceptingRef = useRef(false);
   const audioCtxRef = useRef(null);
   const previewRef = useRef(null); // tempat canvas pratinjau di layar filter
@@ -355,6 +365,8 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     setPending(null);
     setError("");
     setSaved(false);
+    setHasAudio(false);
+    setVoiceSent(false);
     setFilterId("normal");
     setThumbs({});
     setStickers([]);
@@ -362,10 +374,12 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
     setPickSticker(null);
     filteredRef.current = null;
     blobRef.current = null;
+    audioRef.current = null;
     setPhase("live");
   }
 
-  // Foto strip dikirim ke galeri.
+  // Foto strip (dengan filter yang dipilih) dikirim ke galeri. Kalau tamu sudah merekam
+  // suara, voice note ikut dikirim bersamanya.
   async function save() {
     if (!blobRef.current || savingRef.current) return;
     savingRef.current = true;
@@ -375,6 +389,10 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
       const form = new FormData();
       form.append("frame", frame.id);
       form.append("photo", blobRef.current, "strip.jpg");
+      const withAudio = !!audioRef.current;
+      if (withAudio) {
+        form.append("audio", audioRef.current, `voice.${audioExt(audioRef.current)}`);
+      }
       const res = await fetch(`/api/guest/${slug}/submissions`, { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -382,6 +400,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
         return;
       }
       setSaved(true);
+      setVoiceSent(withAudio);
     } catch {
       setError("Koneksi bermasalah. Foto belum terunggah, coba lagi.");
     } finally {
@@ -456,6 +475,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
       resultUrlRef.current = url;
       setResultUrl(url);
       setSaved(false);
+      setVoiceSent(false);
+      setHasAudio(false);
+      audioRef.current = null;
       setError("");
       setSelSticker(null);
       setPhase("final");
@@ -879,7 +901,7 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
         </>
       )}
 
-      {/* 3) Hasil akhir: upload ke galeri. */}
+      {/* 3) Hasil akhir: rekam suara (opsional), lalu upload ke galeri. */}
       {phase === "final" && resultUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -890,9 +912,21 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
             style={{ filter: "drop-shadow(0 0 18px color-mix(in srgb, var(--gold) 55%, transparent))" }}
           />
 
+          {!saved && (
+            <VoiceRecorder
+              disabled={saving}
+              onChange={(b) => {
+                audioRef.current = b;
+                setHasAudio(!!b);
+              }}
+            />
+          )}
+
           {saved && (
             <p role="status" className={okBox}>
-              Foto berhasil diunggah ke galeri. Terima kasih sudah berfoto!
+              {voiceSent
+                ? "Foto dan voice note berhasil diunggah ke galeri. Terima kasih sudah berfoto!"
+                : "Foto berhasil diunggah ke galeri. Terima kasih sudah berfoto!"}
             </p>
           )}
 
@@ -917,7 +951,9 @@ export default function PhotoBooth({ slug, frame, frameText = null }) {
                   ? "Mengunggah..."
                   : error
                     ? "Coba Lagi"
-                    : "Upload ke Galeri"}
+                    : hasAudio
+                      ? "Upload Foto & Suara ke Galeri"
+                      : "Upload ke Galeri"}
               </button>
             ) : (
               <>

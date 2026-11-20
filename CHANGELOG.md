@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.12.0 - Voice note tamu
+
+Rekam suara, unggah bersama foto, putar di galeri, statistik voice note.
+
 ## v0.11.0 - Stiker
 
 25 stiker yang bisa digeser, diputar, diperbesar, dan ditempel ke hasil foto.

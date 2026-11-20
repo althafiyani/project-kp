@@ -26,7 +26,7 @@ export default async function GalleryPage({ params }) {
   }
 
   const { rows } = await query(
-    `SELECT id, photo_url FROM submissions
+    `SELECT id, photo_url, audio_url FROM submissions
       WHERE event_id = $1 ORDER BY created_at DESC LIMIT 200`,
     [event.id],
   );
@@ -52,6 +52,7 @@ export default async function GalleryPage({ params }) {
                 className="h-auto max-h-[60dvh] w-full object-contain"
                 style={{ filter: "drop-shadow(0 0 12px color-mix(in srgb, var(--gold) 50%, transparent))" }}
               />
+              {r.audio_url && <audio src={r.audio_url} controls preload="none" className="w-full" />}
               <a href={r.photo_url} download className="font-sans text-xs font-bold underline">
                 Unduh
               </a>

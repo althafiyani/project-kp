@@ -27,7 +27,9 @@ export default async function DashboardPage() {
          (SELECT COUNT(*) FROM events e WHERE ${sc.clause})::int AS total_event,
          (SELECT COUNT(*) FROM events e WHERE ${sc.clause} AND ${sqlIsOpen("e")})::int AS event_aktif,
          (SELECT COUNT(*) FROM submissions s JOIN events e ON e.id = s.event_id
-            WHERE ${sc.clause})::int AS total_foto`,
+            WHERE ${sc.clause})::int AS total_foto,
+         (SELECT COUNT(*) FROM submissions s JOIN events e ON e.id = s.event_id
+            WHERE ${sc.clause} AND s.audio_url IS NOT NULL)::int AS total_voice`,
       sc.params,
     ),
     query(
@@ -49,6 +51,7 @@ export default async function DashboardPage() {
     ["Total Event", stat.total_event],
     ["Event Aktif", stat.event_aktif],
     ["Total Foto", stat.total_foto],
+    ["Total Voice Note", stat.total_voice],
   ];
 
   return (
@@ -68,7 +71,7 @@ export default async function DashboardPage() {
         <LogoutButton />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {kartu.map(([label, nilai]) => (
           <div key={label} className={card}>
             <p className="text-sm text-muted">{label}</p>

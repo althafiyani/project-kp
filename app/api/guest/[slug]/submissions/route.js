@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { query } from "@/lib/db";
 import { isUuid, jsonError } from "@/lib/api";
-import { readImageUpload, MAX_IMAGE_BYTES } from "@/lib/upload";
+import { readImageUpload, readAudioUpload, MAX_IMAGE_BYTES, MAX_AUDIO_BYTES } from "@/lib/upload";
 import { saveFile, deleteFile } from "@/lib/storage";
 import { sqlIsOpen } from "@/lib/eventWindow";
 
@@ -25,9 +25,10 @@ export async function POST(request, { params }) {
   if (!/^[a-z0-9-]{1,150}$/.test(slug)) return jsonError("Event tidak ditemukan.", 404);
 
   const panjang = Number(request.headers.get("content-length") || 0);
-  if (panjang > MAX_IMAGE_BYTES + 1024 * 1024) return jsonError("Ukuran file terlalu besar.", 413);
+  if (panjang > MAX_IMAGE_BYTES + MAX_AUDIO_BYTES + 1024 * 1024) return jsonError("Ukuran file terlalu besar.", 413);
 
   let photoUrl = null;
+  let audioUrl = null;
   try {
     const ev = await query(
       `SELECT id, ${sqlIsOpen("events")} AS terbuka FROM events WHERE slug = $1`,
@@ -65,19 +66,24 @@ export async function POST(request, { params }) {
     const up = await readImageUpload(form, "photo", ["jpg", "png", "webp"]);
     if (!up.ok) return jsonError(up.error, up.status);
 
+    const au = await readAudioUpload(form, "audio");
+    if (!au.ok) return jsonError(au.error, au.status);
+
     photoUrl = await saveFile(up.buffer, { folder: "photos", ext: up.type.ext });
+    if (!au.none) audioUrl = await saveFile(au.buffer, { folder: "audio", ext: au.type.ext });
     const { rows } = await query(
-      `INSERT INTO submissions (event_id, frame_id, photo_url)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [event.id, frameId, photoUrl],
+      `INSERT INTO submissions (event_id, frame_id, photo_url, audio_url)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [event.id, frameId, photoUrl, audioUrl],
     );
     await query("INSERT INTO upload_logs (ip_hash) VALUES ($1)", [hash]);
     // Bersihkan log lama supaya tabel tidak membengkak.
     await query("DELETE FROM upload_logs WHERE created_at < now() - interval '1 day'");
 
-    return NextResponse.json({ id: rows[0].id, photo_url: photoUrl }, { status: 201 });
+    return NextResponse.json({ id: rows[0].id, photo_url: photoUrl, audio_url: audioUrl }, { status: 201 });
   } catch (err) {
     if (photoUrl) await deleteFile(photoUrl);
+    if (audioUrl) await deleteFile(audioUrl);
     console.error("[submissions POST] error:", err);
     return jsonError("Gagal menyimpan foto.", 500);
   }
