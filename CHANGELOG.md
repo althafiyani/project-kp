@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.13.0 - Galeri dashboard dan export ZIP
+
+Lihat, pilih, hapus foto tamu, serta export ZIP. Disatukan karena export memakai pilihan foto di galeri.
+
 ## v0.12.0 - Voice note tamu
 
 Rekam suara, unggah bersama foto, putar di galeri, statistik voice note.

@@ -9,6 +9,7 @@ import { accessInfo, sqlIsOpen } from "@/lib/eventWindow";
 import LogoutButton from "@/components/LogoutButton";
 import CreateEventForm from "@/components/CreateEventForm";
 import EventActions from "@/components/EventActions";
+import ExportButton from "@/components/ExportButton";
 
 export const metadata = { title: "Dashboard | Virtual Photobooth MyCard" };
 
@@ -120,6 +121,7 @@ export default async function DashboardPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <ExportButton eventId={ev.id} className="px-3 py-1.5" />
                   {admin && <EventActions id={ev.id} status={ev.status} access={accessInfo(ev)} />}
                 </div>
               </li>

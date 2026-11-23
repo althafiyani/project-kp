@@ -20,6 +20,7 @@ import FrameTextEditor from "@/components/FrameTextEditor";
 import ThemeEditor from "@/components/ThemeEditor";
 import Section from "@/components/Section";
 import { frameTextFromEvent } from "@/lib/frameTextConfig";
+import SubmissionList from "@/components/SubmissionList";
 
 export const metadata = { title: "Detail Event | Virtual Photobooth MyCard" };
 
@@ -46,6 +47,12 @@ export default async function EventDetailPage({ params }) {
   );
   const event = rows[0];
   if (!event) notFound();
+
+  const subResult = await query(
+    `SELECT id, photo_url, audio_url FROM submissions WHERE event_id = $1 ORDER BY created_at DESC LIMIT 200`,
+    [event.id],
+  );
+  const submissions = subResult.rows;
 
   // Font sendiri untuk teks frame (admin dan mempelai pemilik event).
   const fontResult = await query(
@@ -174,6 +181,10 @@ export default async function EventDetailPage({ params }) {
           <FrameUpload eventId={event.id} frameText={frameTextFromEvent(event)} />
         </Section>
       )}
+
+      <Section title={`Foto dari Tamu (${submissions.length})`} defaultOpen={!admin}>
+        <SubmissionList items={submissions} eventId={event.id} readOnly={!admin} />
+      </Section>
     </main>
   );
 }
