@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v1.0.0 - Rilis stabil
+
+Dokumentasi lengkap dan aset desain sumber. Kode identik dengan project asal.
+
 ## v0.14.0 - Dashboard mempelai
 
 Ringkasan, pengaturan foto opening dan teks frame, galeri, dan export untuk mempelai.
