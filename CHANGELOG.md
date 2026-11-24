@@ -1,5 +1,9 @@
 # Riwayat Rilis
 
+## v0.14.0 - Dashboard mempelai
+
+Ringkasan, pengaturan foto opening dan teks frame, galeri, dan export untuk mempelai.
+
 ## v0.13.0 - Galeri dashboard dan export ZIP
 
 Lihat, pilih, hapus foto tamu, serta export ZIP. Disatukan karena export memakai pilihan foto di galeri.
